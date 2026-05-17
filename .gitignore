@@ -1,0 +1,11 @@
+# Python / Django ignore
+__pycache__/
+*.pyc
+db.sqlite3
+.env
+.venv
+
+# React / Node ignore
+node_modules/
+build/
+.env.local
