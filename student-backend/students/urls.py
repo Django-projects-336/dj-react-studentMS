@@ -2,23 +2,23 @@ from django.urls import path
 
 from .views import (
     AdminApproveStudentView,
-    AdminDeleteStudentView,
     AdminStudentDetailView,
-    AdminStudentListView,
+    AdminStudentListCreateView,
     StudentLoginView,
     StudentProfileView,
     StudentSignupView,
 )
 
-# All API routes for the students app live here.
 urlpatterns = [
-    # Public routes (no JWT required)
     path("signup/", StudentSignupView.as_view(), name="student-signup"),
     path("login/", StudentLoginView.as_view(), name="student-login"),
-    # Student route (JWT required)
     path("profile/", StudentProfileView.as_view(), name="student-profile"),
-    # Admin routes (JWT required + must be superuser/staff)
-    path("admin/students/", AdminStudentListView.as_view(), name="admin-student-list"),
+    # Admin CRUD: GET+POST on collection, GET+PUT+PATCH+DELETE on one student
+    path(
+        "admin/students/",
+        AdminStudentListCreateView.as_view(),
+        name="admin-student-list-create",
+    ),
     path(
         "admin/students/<int:user_id>/",
         AdminStudentDetailView.as_view(),
@@ -28,10 +28,5 @@ urlpatterns = [
         "admin/students/<int:user_id>/approve/",
         AdminApproveStudentView.as_view(),
         name="admin-student-approve",
-    ),
-    path(
-        "admin/students/<int:user_id>/delete/",
-        AdminDeleteStudentView.as_view(),
-        name="admin-student-delete",
     ),
 ]

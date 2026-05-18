@@ -6,7 +6,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import CustomUser, StudentProfile
 from .serializers import (
+    AdminStudentCreateSerializer,
     AdminStudentListSerializer,
+    AdminStudentUpdateSerializer,
     CustomTokenObtainPairSerializer,
     StudentProfileReadSerializer,
     StudentSignupSerializer,
@@ -14,7 +16,6 @@ from .serializers import (
 
 
 # --- PUBLIC: Student signup ---
-# Anyone can POST here to register. Account starts unapproved.
 class StudentSignupView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = StudentSignupSerializer
@@ -34,14 +35,12 @@ class StudentProfileView(APIView):
     def get(self, request):
         user = request.user
 
-        # Only student accounts have a profile endpoint.
         if not user.is_student:
             return Response(
                 {"detail": "Only students can view this profile."},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Every approved student should have a profile row from signup.
         try:
             profile = user.student_profile
         except StudentProfile.DoesNotExist:
@@ -54,27 +53,47 @@ class StudentProfileView(APIView):
         return Response(serializer.data)
 
 
-# --- PROTECTED: Admin lists all students ---
-class AdminStudentListView(generics.ListAPIView):
-    serializer_class = AdminStudentListSerializer
+# --- ADMIN CRUD: List (GET) and Create (POST) ---
+class AdminStudentListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        # Return profiles only for accounts marked as students.
         return StudentProfile.objects.filter(user__is_student=True)
 
+    def get_serializer_class(self):
+        # POST uses create serializer; GET uses read serializer
+        if self.request.method == "POST":
+            return AdminStudentCreateSerializer
+        return AdminStudentListSerializer
 
-# --- PROTECTED: Admin sees one student by user id ---
-class AdminStudentDetailView(generics.RetrieveAPIView):
-    serializer_class = AdminStudentListSerializer
+
+# --- ADMIN CRUD: Read (GET), Update (PUT/PATCH), Delete (DELETE) ---
+class AdminStudentDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminUser]
     lookup_field = "user_id"
+    lookup_url_kwarg = "user_id"
 
     def get_queryset(self):
         return StudentProfile.objects.filter(user__is_student=True)
 
+    def get_serializer_class(self):
+        if self.request.method in ["PUT", "PATCH"]:
+            return AdminStudentUpdateSerializer
+        return AdminStudentListSerializer
 
-# --- PROTECTED: Admin approves a pending student ---
+    # After update, return the full student data using the read serializer
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        read_serializer = AdminStudentListSerializer(instance)
+        return Response(read_serializer.data)
+
+
+# --- ADMIN: Quick approve button (still handy for the dashboard) ---
 class AdminApproveStudentView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -91,25 +110,3 @@ class AdminApproveStudentView(APIView):
         user.save()
 
         return Response({"detail": "Student approved successfully."})
-
-
-# --- PROTECTED: Admin deletes a student account ---
-class AdminDeleteStudentView(APIView):
-    permission_classes = [IsAdminUser]
-
-    def delete(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(pk=user_id, is_student=True)
-        except CustomUser.DoesNotExist:
-            return Response(
-                {"detail": "Student not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        # Deleting the user also deletes the profile (CASCADE on OneToOne).
-        user.delete()
-
-        return Response(
-            {"detail": "Student deleted successfully."},
-            status=status.HTTP_204_NO_CONTENT,
-        )
