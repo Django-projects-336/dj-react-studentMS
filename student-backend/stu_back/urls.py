@@ -16,8 +16,11 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
+    # Django's built-in admin site (useful for creating a superuser)
     path("admin/", admin.site.urls),
+    # Our REST API lives under /api/
+    path("api/", include("students.urls")),
 ]
